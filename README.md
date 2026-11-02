@@ -15,8 +15,10 @@ One 12 KB exe with no dependencies. It needs no admin rights, and you don't have
 ## Install
 
 ```
-winget install GautamKhera.Awake
+winget install awake
 ```
+
+(If winget ever asks which package you mean, use the full ID: `winget install GautamKhera.Awake`.)
 
 Then open a new terminal. `awake` works in PowerShell, Command Prompt, Windows Terminal and Git Bash.
 
@@ -56,7 +58,7 @@ Note: this stops *idle* sleep. Closing a laptop lid or pressing the power button
 ## Uninstall
 
 ```
-winget uninstall GautamKhera.Awake
+winget uninstall awake
 ```
 
 or, if you used `install.ps1`, run `powershell -ExecutionPolicy Bypass -File .\uninstall.ps1` from the clone.
