@@ -10,27 +10,26 @@ awake off        # off
 awake status     # is it on? until when?
 ```
 
-No dependencies, no admin rights, nothing to keep open: it runs as a hidden background process, so you can close the terminal.
+One 12 KB exe with no dependencies. It needs no admin rights, and you don't have to keep anything open: it runs in the background, so you can close the terminal.
 
 ## Install
 
-In PowerShell:
-
-```powershell
-irm https://raw.githubusercontent.com/gautamkhera/awake/main/install.ps1 | iex
 ```
-
-Or from a clone:
-
-```powershell
-git clone https://github.com/gautamkhera/awake.git
-cd awake
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+winget install GautamKhera.Awake
 ```
 
 Then open a new terminal. `awake` works in PowerShell, Command Prompt, Windows Terminal and Git Bash.
 
-The installer puts the script in `%LOCALAPPDATA%\Programs\awake` and adds its `bin` folder to your user `PATH`. Re-run it to upgrade.
+**Other ways:**
+
+- Download `awake.exe` from the [latest release](https://github.com/gautamkhera/awake/releases/latest) and put it in any folder on your `PATH`.
+- Build it from source using the C# compiler that ships with Windows:
+
+  ```powershell
+  git clone https://github.com/gautamkhera/awake.git
+  cd awake
+  powershell -ExecutionPolicy Bypass -File .\install.ps1
+  ```
 
 ## Usage
 
@@ -48,19 +47,19 @@ Giving a new duration or time while awake is already on replaces the old timer.
 
 ## How it works
 
-`awake` starts a hidden PowerShell process that calls the Windows [`SetThreadExecutionState`](https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-setthreadexecutionstate) API with `ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED`, the same mechanism video players use. When the timer ends or you run `awake` again, the process exits and Windows goes back to your normal power settings. Nothing about your power plan is changed.
+`awake` starts a hidden copy of itself that calls the Windows [`SetThreadExecutionState`](https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-setthreadexecutionstate) API with `ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED`, the same mechanism video players use. When the timer ends or you run `awake` again, that process exits and Windows goes back to your normal power settings. Nothing about your power plan is changed.
 
-State lives in `%LOCALAPPDATA%\awake\state.json`.
+The whole program is [`src/awake.cs`](src/awake.cs). State lives in `%LOCALAPPDATA%\awake\state.txt`.
 
 Note: this stops *idle* sleep. Closing a laptop lid or pressing the power button still does whatever your power settings say.
 
 ## Uninstall
 
-```powershell
-irm https://raw.githubusercontent.com/gautamkhera/awake/main/uninstall.ps1 | iex
+```
+winget uninstall GautamKhera.Awake
 ```
 
-or `powershell -ExecutionPolicy Bypass -File .\uninstall.ps1` from a clone.
+or, if you used `install.ps1`, run `powershell -ExecutionPolicy Bypass -File .\uninstall.ps1` from the clone.
 
 ## License
 

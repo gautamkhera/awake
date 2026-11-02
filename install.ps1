@@ -1,44 +1,43 @@
 <#
-  Installs awake for the current user (no admin needed).
+  Builds awake.exe from source and installs it for the current user (no admin
+  needed). Most people should use `winget install GautamKhera.Awake` instead.
 
-  From a clone:   powershell -ExecutionPolicy Bypass -File .\install.ps1
-  From the web:   irm https://raw.githubusercontent.com/gautamkhera/awake/main/install.ps1 | iex
+    git clone https://github.com/gautamkhera/awake.git
+    cd awake
+    powershell -ExecutionPolicy Bypass -File .\install.ps1
 
-  Puts awake.ps1 in %LOCALAPPDATA%\Programs\awake, writes small launchers for
-  cmd/PowerShell (awake.cmd) and Git Bash (awake) into its bin folder, and adds
-  that folder to your user PATH. Re-run it to upgrade.
+  Puts awake.exe in %LOCALAPPDATA%\Programs\awake and adds that folder to your
+  user PATH. Re-run it to upgrade.
 #>
 
 $ErrorActionPreference = 'Stop'
-$RepoRaw    = 'https://raw.githubusercontent.com/gautamkhera/awake/main'
 $InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\awake'
-$BinDir     = Join-Path $InstallDir 'bin'
+$OldBinDir  = Join-Path $InstallDir 'bin'
 
-New-Item -ItemType Directory -Force $BinDir | Out-Null
+& (Join-Path $PSScriptRoot 'build.ps1')
 
-# Copy awake.ps1 from next to this script, or download it when run via irm | iex.
-$localScript = if ($PSScriptRoot) { Join-Path $PSScriptRoot 'awake.ps1' }
-if ($localScript -and (Test-Path $localScript)) {
-    Copy-Item $localScript (Join-Path $InstallDir 'awake.ps1') -Force
-} else {
-    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest "$RepoRaw/awake.ps1" -OutFile (Join-Path $InstallDir 'awake.ps1') -UseBasicParsing
+# Clean up the 1.0 PowerShell-script install, turning it off first if it's running.
+$oldScript = Join-Path $InstallDir 'awake.ps1'
+if (Test-Path $oldScript) {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $oldScript off | Out-Null
+    Remove-Item $oldScript, $OldBinDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-# Launchers. awake.ps1 stays out of PATH so PowerShell never runs it directly
-# (which would be subject to the execution policy).
-$cmdShim = "@echo off`r`npowershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0..\awake.ps1`" %*`r`n"
-[IO.File]::WriteAllText((Join-Path $BinDir 'awake.cmd'), $cmdShim)
+# Stop a running copy so the exe can be replaced.
+$exe = Join-Path $InstallDir 'awake.exe'
+if (Test-Path $exe) { & $exe off | Out-Null }
 
-$shShim = "#!/bin/sh`nexec powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"`$(cd `"`$(dirname `"`$0`")/..`" && pwd -W)/awake.ps1`" `"`$@`"`n"
-[IO.File]::WriteAllText((Join-Path $BinDir 'awake'), $shShim)
+New-Item -ItemType Directory -Force $InstallDir | Out-Null
+Copy-Item (Join-Path $PSScriptRoot 'dist\awake.exe') $exe -Force
 
-# Add bin to the user PATH, preserving any %VARIABLES% already in it.
+# Add the install folder to the user PATH, preserving any %VARIABLES% in it.
 $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
 $userPath = [string]$key.GetValue('Path', '', 'DoNotExpandEnvironmentNames')
-$entries = $userPath -split ';' | Where-Object { $_ }
-if ($entries -notcontains $BinDir) {
-    $key.SetValue('Path', (($entries + $BinDir) -join ';'), 'ExpandString')
+$entries = @($userPath -split ';' | Where-Object { $_ -and $_ -ne $OldBinDir })
+if ($entries -notcontains $InstallDir) { $entries += $InstallDir }
+$newPath = $entries -join ';'
+if ($newPath -ne $userPath) {
+    $key.SetValue('Path', $newPath, 'ExpandString')
 
     # Tell Explorer so newly opened terminals see the new PATH.
     Add-Type -Namespace AwakeInstall -Name Win32 -MemberDefinition @'
@@ -50,7 +49,7 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wP
 }
 $key.Close()
 
-if (($env:Path -split ';') -notcontains $BinDir) { $env:Path = "$env:Path;$BinDir" }
+$env:Path = (@($env:Path -split ';' | Where-Object { $_ -and $_ -ne $OldBinDir }) + $InstallDir | Select-Object -Unique) -join ';'
 
 Write-Host "awake installed to $InstallDir" -ForegroundColor Green
 Write-Host "Open a new terminal and run 'awake help' to get started."

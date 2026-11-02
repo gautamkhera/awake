@@ -1,27 +1,27 @@
 <#
-  Removes awake for the current user.
+  Removes an awake install made by install.ps1. (If you installed with winget,
+  run `winget uninstall GautamKhera.Awake` instead.)
 
-  From a clone:   powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
-  From the web:   irm https://raw.githubusercontent.com/gautamkhera/awake/main/uninstall.ps1 | iex
+    powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 #>
 
 $ErrorActionPreference = 'Stop'
 $InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\awake'
-$BinDir     = Join-Path $InstallDir 'bin'
+$OldBinDir  = Join-Path $InstallDir 'bin'
 $StateDir   = Join-Path $env:LOCALAPPDATA 'awake'
 
 # Turn awake off first so no background process is left behind.
-$script = Join-Path $InstallDir 'awake.ps1'
-if (Test-Path $script) { & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script off | Out-Null }
+$exe = Join-Path $InstallDir 'awake.exe'
+if (Test-Path $exe) { & $exe off | Out-Null }
+$oldScript = Join-Path $InstallDir 'awake.ps1'
+if (Test-Path $oldScript) { & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $oldScript off | Out-Null }
 
 $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
 $userPath = [string]$key.GetValue('Path', '', 'DoNotExpandEnvironmentNames')
-$entries = $userPath -split ';' | Where-Object { $_ }
-if ($entries -contains $BinDir) {
-    $key.SetValue('Path', (($entries | Where-Object { $_ -ne $BinDir }) -join ';'), 'ExpandString')
-}
+$newPath = ($userPath -split ';' | Where-Object { $_ -and $_ -ne $InstallDir -and $_ -ne $OldBinDir }) -join ';'
+if ($newPath -ne $userPath) { $key.SetValue('Path', $newPath, 'ExpandString') }
 $key.Close()
-$env:Path = (($env:Path -split ';') | Where-Object { $_ -and $_ -ne $BinDir }) -join ';'
+$env:Path = ($env:Path -split ';' | Where-Object { $_ -and $_ -ne $InstallDir -and $_ -ne $OldBinDir }) -join ';'
 
 Remove-Item $InstallDir -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $StateDir -Recurse -Force -ErrorAction SilentlyContinue
