@@ -34,7 +34,7 @@ Giving a duration or time while awake is already on replaces the old timer.
 }
 
 function Format-Span([TimeSpan]$span) {
-    if ($span.TotalSeconds -lt 60) { return '<1m' }
+    if ($span.TotalSeconds -lt 1) { return '<1m' }
     # Round up to the minute so "awake 2h" reports 2h, not 1h 59m.
     $span = [TimeSpan]::FromMinutes([Math]::Ceiling($span.TotalMinutes))
     $parts = @()
