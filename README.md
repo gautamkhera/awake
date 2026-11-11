@@ -63,6 +63,17 @@ winget uninstall awake
 
 or, if you used `install.ps1`, run `powershell -ExecutionPolicy Bypass -File .\uninstall.ps1` from the clone.
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+Every release is built from this repository's source by the [release workflow](.github/workflows/release.yml) on GitHub-hosted runners, and each signing request is approved by hand.
+
+- Committers and reviewers: [Gautam Khera](https://github.com/gautamkhera)
+- Approvers: [Gautam Khera](https://github.com/gautamkhera)
+
+**Privacy policy:** This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+
 ## License
 
 MIT

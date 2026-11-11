@@ -1,0 +1,85 @@
+# Builds awake.exe on a GitHub-hosted runner, signs it through SignPath once
+# signing is configured, and publishes it as a GitHub release.
+#
+#   - Push a tag like v1.2.3 to build, sign and release that version.
+#   - Run manually (Actions > release > Run workflow) to just build and check.
+#
+# Signing turns on when the repo has the SIGNPATH_API_TOKEN secret and the
+# SIGNPATH_ORGANIZATION_ID variable (Settings > Secrets and variables > Actions).
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Check version matches tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'.TrimStart('v')
+          $info = (Get-Item dist/awake.exe).VersionInfo
+          if ($info.ProductVersion -notlike "$tag*" -or $info.ProductName -ne 'awake') {
+            throw "awake.exe is '$($info.ProductName)' $($info.ProductVersion), expected 'awake' $tag. Update the version in src/awake.cs."
+          }
+
+      - name: Upload unsigned exe
+        id: upload-unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist/awake.exe
+          archive: false
+
+      - name: Sign with SignPath
+        if: startsWith(github.ref, 'refs/tags/v') && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: awake
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          # Every release is approved by hand in SignPath, so allow time for that.
+          wait-for-completion-timeout-in-seconds: 86400
+          output-artifact-directory: signed
+          skip-decompress: true
+
+      - name: Use signed exe
+        if: startsWith(github.ref, 'refs/tags/v') && vars.SIGNPATH_ORGANIZATION_ID != ''
+        shell: pwsh
+        run: |
+          Copy-Item signed/awake.exe dist/awake.exe -Force
+          $sig = Get-AuthenticodeSignature dist/awake.exe
+          if ($sig.Status -ne 'Valid') { throw "Signed exe has signature status $($sig.Status)." }
+          "Signed by: $($sig.SignerCertificate.Subject)"
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $hash = (Get-FileHash dist/awake.exe -Algorithm SHA256).Hash
+          $notes = @"
+          Download ``awake.exe`` below and put it on your PATH, or run ``winget install awake``.
+
+          SHA256: ``$hash``
+
+          [Code signing policy](https://github.com/${{ github.repository }}#code-signing-policy)
+          "@
+          gh release create '${{ github.ref_name }}' dist/awake.exe --title "awake ${{ github.ref_name }}" --notes $notes
